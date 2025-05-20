@@ -20,5 +20,9 @@ public class Task {
     private LocalDateTime dueDate;
     private boolean resolved;
     private boolean deleted;
+
+    public void test() {
+        Task t = Task.builder().createdAt(LocalDateTime.now()).build();
+    }
 }
 

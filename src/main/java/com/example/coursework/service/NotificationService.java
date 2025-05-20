@@ -13,39 +13,42 @@ import java.util.stream.Collectors;
 public class NotificationService {
     private final List<Notification> notifications = new ArrayList<>();
 
+    // возвращает все уведомления для пользователя
     public List<Notification> getAll(String userId) {
-        /**
-         * возвращает все уведомления для пользователя
-         */
         return notifications.stream()
                 .filter(n -> n.getUserId().equals(userId))
                 .collect(Collectors.toList());
     }
 
+    // возвращает непрочитанные уведомления пользователя
     public List<Notification> getPending(String userId) {
-        /**
-         * возвращает непрочитанные уведомления пользователя
-         */
         return notifications.stream()
                 .filter(n -> n.getUserId().equals(userId) && !n.isReceived())
                 .collect(Collectors.toList());
     }
 
+    // добавляет новое уведомление в список
     public void addNotification(Notification notification) {
-        /**
-         * добавляет новое уведомление в список
-         */
         notification.setId(UUID.randomUUID());
         notifications.add(notification);
     }
 
+    // возвращает конкретное уведомление по его ID
     public Optional<Notification> getNotificationById(UUID id) {
         return notifications.stream()
                 .filter(n -> n.getId().equals(id))
                 .findFirst();
     }
 
+    // обновляет уведомление: заменяет старое на новое
     public void updateNotification(Notification notification) {
+        // Проверка существования уведомления
+        boolean exists = notifications.stream()
+                .anyMatch(n -> n.getId().equals(notification.getId()));
+        if (!exists) {
+            throw new IllegalArgumentException("Уведомление с ID " + notification.getId() + " не найдено");
+        }
+        // Обновление
         notifications.removeIf(n -> n.getId().equals(notification.getId()));
         notifications.add(notification);
     }

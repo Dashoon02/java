@@ -2,11 +2,11 @@ package com.example.coursework.controller;
 
 import com.example.coursework.model.Notification;
 import com.example.coursework.service.NotificationService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -29,19 +29,26 @@ public class NotificationController {
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public Notification addNotification(@RequestBody Notification notification) {
         notificationService.addNotification(notification);
         return notification;
     }
 
+    @GetMapping("/{id}")
+    public Notification getById(@PathVariable UUID id) {
+        return notificationService.getNotificationById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
+    }
+
     @PatchMapping("/{id}/mark-as-read")
-    public void markAsRead(@PathVariable UUID id, @RequestBody Map<String, Boolean> request) {
-        boolean received = request.get("received");
-        Optional<Notification> notification = notificationService.getNotificationById(id);
-        notification.ifPresent(n -> {
-            n.setReceived(received);
-            notificationService.updateNotification(n);
-        });
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void markAsRead(@PathVariable UUID id) {
+        Notification notification = notificationService.getNotificationById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
+
+        notification.setReceived(true);
+        notificationService.updateNotification(notification);
     }
 }
 

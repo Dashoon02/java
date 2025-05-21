@@ -23,11 +23,6 @@ public class NotificationController {
         return notificationService.getAll(userId);
     }
 
-    @GetMapping("/pending")
-    public List<Notification> getPending(@RequestParam String userId) {
-        return notificationService.getPending(userId);
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Notification addNotification(@RequestBody Notification notification) {
@@ -36,19 +31,16 @@ public class NotificationController {
     }
 
     @GetMapping("/{id}")
-    public Notification getById(@PathVariable UUID id) {
-        return notificationService.getNotificationById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
-    }
+    public List<Notification> getById(
+            @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "false") boolean notificationsBefore) {
 
-    @PatchMapping("/{id}/mark-as-read")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void markAsRead(@PathVariable UUID id) {
-        Notification notification = notificationService.getNotificationById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
+        List<Notification> result = notificationService.getNotificationById(id, notificationsBefore);
 
-        notification.setReceived(true);
-        notificationService.updateNotification(notification);
+        if (result.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Уведомление не найдено");
+        }
+
+        return result;
     }
 }
-

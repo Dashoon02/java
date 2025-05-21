@@ -4,10 +4,7 @@ import com.example.coursework.model.Task;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,11 +18,17 @@ public class TaskService {
      * присваивает ей время
      * и затем сохраняет эту задачу в хранилище
      */
-    public Task createTask(Task task){
-        UUID id = UUID.randomUUID(); // создаем уникальный идентификтор
-        task.setId(id); // присваиваем созданный идентификатор задаче
-        task.setCreatedAt(LocalDateTime.now()); // время создания
-        tasks.put(id, task); // сохраняем в HashMap
+    public Task createTask(String userId, String title, LocalDateTime dueDate) {
+        Task task = Task.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .title(title)
+                .createdAt(LocalDateTime.now())
+                .dueDate(dueDate)
+                .resolved(false)
+                .deleted(false)
+                .build();
+        tasks.put(task.getId(), task);
         return task;
     }
 
@@ -50,7 +53,7 @@ public class TaskService {
     public void markDeleted(UUID id) {
         Task task = tasks.get(id);
         if (task == null) {
-            throw new IllegalArgumentException("Задача с ID " + id + " не найдена");
+            throw new NoSuchElementException("Задача с ID " + id + " не найдена");
         }
         task.setDeleted(true);
     }

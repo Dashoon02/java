@@ -3,10 +3,8 @@ package com.example.coursework.service;
 import com.example.coursework.model.Notification;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,36 +18,34 @@ public class NotificationService {
                 .collect(Collectors.toList());
     }
 
-    // возвращает непрочитанные уведомления пользователя
-    public List<Notification> getPending(String userId) {
-        return notifications.stream()
-                .filter(n -> n.getUserId().equals(userId) && !n.isReceived())
-                .collect(Collectors.toList());
-    }
-
     // добавляет новое уведомление в список
     public void addNotification(Notification notification) {
         notification.setId(UUID.randomUUID());
+        notification.setCreatedAt(LocalDateTime.now());
         notifications.add(notification);
     }
 
-    // возвращает конкретное уведомление по его ID
-    public Optional<Notification> getNotificationById(UUID id) {
-        return notifications.stream()
-                .filter(n -> n.getId().equals(id))
-                .findFirst();
-    }
+    /**
+     * notificationsBefore = false: возвращает конкретное уведомление по его ID
+     * notificationsBefore = true: возвращает все уведомления, которые были до указанного (включительно)
+     */
+    public List<Notification> getNotificationById(UUID id, boolean notificationsBefore) {
+        Objects.requireNonNull(notifications, "Список уведомлений не может быть null");
 
-    // обновляет уведомление: заменяет старое на новое
-    public void updateNotification(Notification notification) {
-        // Проверка существования уведомления
-        boolean exists = notifications.stream()
-                .anyMatch(n -> n.getId().equals(notification.getId()));
-        if (!exists) {
-            throw new IllegalArgumentException("Уведомление с ID " + notification.getId() + " не найдено");
+        Notification target = notifications.stream()
+                .filter(n -> id.equals(n.getId()))  // поменяли местами для null-safety
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Уведомление с ID " + id + " не найдено"));
+
+        if (!notificationsBefore) {
+            return List.of(target);
         }
-        // Обновление
-        notifications.removeIf(n -> n.getId().equals(notification.getId()));
-        notifications.add(notification);
+
+        LocalDateTime targetDate = target.getCreatedAt();
+        return notifications.stream()
+                .filter(n -> !n.getCreatedAt().isAfter(targetDate))
+                .sorted(Comparator.comparing(Notification::getCreatedAt).reversed())
+                .toList(); // Java 16+ вместо collect(Collectors.toList())
     }
+
 }

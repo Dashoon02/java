@@ -1,10 +1,9 @@
 package com.example.coursework.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.GenericGenerator;
+
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -18,7 +17,9 @@ import java.util.UUID;
 public class Task {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    @Column(updatable = false, nullable = false)
     private UUID id;
 
     private String userId;
@@ -27,5 +28,7 @@ public class Task {
     private LocalDateTime dueDate;
     private boolean resolved;
     private boolean deleted;
-}
 
+    @Version
+    private Long version;  // <-- добавляем поле версии для оптимистичной блокировки
+}

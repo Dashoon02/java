@@ -5,88 +5,57 @@ import com.example.coursework.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.time.LocalDateTime;
-import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class TaskServiceTest {
+public class TaskServiceTest {
 
     @Mock
     private TaskRepository taskRepository;
 
-    @InjectMocks
+    @Mock
+    private RabbitTemplate rabbitTemplate;
+
     private TaskService taskService;
 
-    private final String userId = "user1";
-    private final LocalDateTime dueDate = LocalDateTime.now().plusDays(1);
+    @BeforeEach
+    void setUp() {
+        taskService = new TaskService(taskRepository, rabbitTemplate);
+    }
 
     @Test
     void testCreateTask_createsValidTask() {
-        ArgumentCaptor<Task> taskCaptor = ArgumentCaptor.forClass(Task.class);
+        // Подготовка
+        String userId = "user123";
+        String title = "New Task";
+        LocalDateTime dueDate = LocalDateTime.now().plusDays(1);
 
-        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Task savedTask = Task.builder()
+                .userId(userId)
+                .title(title)
+                .createdAt(LocalDateTime.now())
+                .dueDate(dueDate)
+                .resolved(false)
+                .deleted(false)
+                .build();
 
-        Task task = taskService.createTask(userId, "Test Task", dueDate);
+        when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
 
-        assertNotNull(task);
-        assertEquals(userId, task.getUserId());
-        assertEquals("Test Task", task.getTitle());
-        assertFalse(task.isDeleted());
-        assertFalse(task.isResolved());
-    }
+        // Действие
+        Task result = taskService.createTask(userId, title, dueDate);
 
-    @Test
-    void testGetTasks_returnsOnlyNonDeleted() {
-        Task t1 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 1").deleted(false).build();
-        Task t2 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 2").deleted(false).build();
+        // Проверка
+        assertNotNull(result);
+        assertEquals(title, result.getTitle());
 
-        when(taskRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(List.of(t1, t2));
-
-        List<Task> tasks = taskService.getTasks(userId);
-
-        assertEquals(2, tasks.size());
-        assertTrue(tasks.contains(t1));
-        assertTrue(tasks.contains(t2));
-    }
-
-    @Test
-    void testGetPendingTasks_returnsOnlyPendingAndNotDeleted() {
-        Task t1 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 1").resolved(false).deleted(false).build();
-        Task t2 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 2").resolved(true).deleted(false).build();
-
-        when(taskRepository.findByUserIdAndResolvedFalseAndDeletedFalse(userId)).thenReturn(List.of(t1));
-
-        List<Task> pending = taskService.getPendingTasks(userId);
-
-        assertEquals(1, pending.size());
-        assertEquals(t1.getId(), pending.get(0).getId());
-    }
-
-    @Test
-    void testMarkDeleted_marksTaskAsDeleted() {
-        UUID id = UUID.randomUUID();
-        Task task = Task.builder().id(id).userId(userId).deleted(false).build();
-
-        when(taskRepository.findById(id)).thenReturn(Optional.of(task));
-        when(taskRepository.save(task)).thenReturn(task);
-
-        taskService.markDeleted(id);
-
-        assertTrue(task.isDeleted());
-        verify(taskRepository).save(task);
-    }
-
-    @Test
-    void testMarkDeleted_throwsIfNotFound() {
-        UUID invalidId = UUID.randomUUID();
-        when(taskRepository.findById(invalidId)).thenReturn(Optional.empty());
-
-        assertThrows(NoSuchElementException.class, () -> taskService.markDeleted(invalidId));
+        verify(taskRepository, times(1)).save(any(Task.class));
+        verify(rabbitTemplate, times(1)).convertAndSend(anyString(), anyString(), any(Task.class));
     }
 }

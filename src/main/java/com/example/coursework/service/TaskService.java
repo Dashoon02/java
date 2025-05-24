@@ -6,6 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import com.example.coursework.config.RabbitMQConfig;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,6 +20,7 @@ import java.util.UUID;
 public class TaskService {
 
     private final TaskRepository taskRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     public Task createTask(String userId, String title, LocalDateTime dueDate) {
         Task task = Task.builder()
@@ -30,8 +34,10 @@ public class TaskService {
 
         Task savedTask = taskRepository.save(task);
 
-        // После создания новой задачи сбрасываем кэш задач пользователя
         evictCachesByUserId(userId);
+
+        // Отправляем уведомление в очередь
+        rabbitTemplate.convertAndSend(RabbitMQConfig.TASK_EXCHANGE, RabbitMQConfig.TASK_ROUTING_KEY, savedTask);
 
         return savedTask;
     }

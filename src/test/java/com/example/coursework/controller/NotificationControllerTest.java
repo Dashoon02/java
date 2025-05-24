@@ -59,7 +59,7 @@ class NotificationControllerTest {
      */
     @Test
     void addNotification_ShouldReturnNotification() {
-        doNothing().when(notificationService).addNotification(notification1);
+        when(notificationService.addNotification(notification1)).thenReturn(notification1);
 
         Notification actual = notificationController.addNotification(notification1);
 

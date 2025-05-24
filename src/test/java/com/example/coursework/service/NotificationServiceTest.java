@@ -1,104 +1,112 @@
 package com.example.coursework.service;
 
 import com.example.coursework.model.Notification;
+import com.example.coursework.repository.NotificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.UUID;
+import java.time.LocalDateTime;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
+    @Mock
+    private NotificationRepository notificationRepository;
+
+    @InjectMocks
     private NotificationService notificationService;
+
+    private Notification sampleNotification;
 
     @BeforeEach
     void setUp() {
-        //  // Инициализация нового экземпляра NotificationService перед каждым тестом
-        notificationService = new NotificationService();
-    }
-
-    /**
-     * Проверяеь, что при добавлении уведомления ему присваиваются ID и дата создания,
-     * а также что оно сохраняется и может быть получено по userId
-     */
-    @Test
-    void testAddNotification_assignsIdAndCreatedAt() {
-        Notification n = Notification.builder()
+        sampleNotification = Notification.builder()
+                .id(UUID.randomUUID())
                 .userId("user1")
                 .message("Test message")
+                .createdAt(LocalDateTime.now())
+                .received(false)
+                .build();
+    }
+
+    @Test
+    void testAddNotification_assignsIdAndCreatedAt() {
+        Notification newNotification = Notification.builder()
+                .userId("user1")
+                .message("Hello")
                 .build();
 
-        notificationService.addNotification(n);
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> {
+            Notification arg = invocation.getArgument(0);
+            arg.setId(UUID.randomUUID());
+            return arg;
+        });
 
-        assertNotNull(n.getId()); // Убедиться, что ID присвоен
-        assertNotNull(n.getCreatedAt()); // Убедиться, что дата создания присвоена
-        assertEquals(1, notificationService.getAll("user1").size()); // Проверка, что уведомление сохранено
+        Notification saved = notificationService.addNotification(newNotification);
+
+        assertNotNull(saved.getId());
+        assertNotNull(saved.getCreatedAt());
+        verify(notificationRepository).save(any(Notification.class));
     }
 
-    /**
-     * Проверяем, что метод getAll возвращает только уведомления,
-     * относящиеся к указанному пользователю
-     */
     @Test
     void testGetAll_returnsOnlyUserNotifications() {
-        Notification n1 = Notification.builder().userId("user1").message("Msg 1").build();
-        Notification n2 = Notification.builder().userId("user2").message("Msg 2").build();
+        List<Notification> notifications = List.of(sampleNotification);
+        when(notificationRepository.findByUserId("user1")).thenReturn(notifications);
 
-        notificationService.addNotification(n1);
-        notificationService.addNotification(n2);
-
-        List<Notification> user1Notifications = notificationService.getAll("user1");
-
-        assertEquals(1, user1Notifications.size()); // Убедиться, что вернулось одно уведомление
-        assertEquals("user1", user1Notifications.get(0).getUserId()); // И что оно принадлежит user1
-    }
-
-    /**
-     * Проверяем, что метод getNotificationById возвращает уведомление по ID корректно
-     */
-    @Test
-    void testGetNotificationById_returnsCorrectNotification() {
-        Notification n = Notification.builder().userId("user").message("Hello").build();
-        notificationService.addNotification(n);
-
-        List<Notification> result = notificationService.getNotificationById(n.getId(), false);
+        List<Notification> result = notificationService.getAll("user1");
 
         assertEquals(1, result.size());
-        assertEquals(n.getId(), result.get(0).getId()); // Убедиться, что ID совпадает
+        assertEquals("user1", result.get(0).getUserId());
+        verify(notificationRepository).findByUserId("user1");
     }
 
-    /**
-     * Проверяем, что метод getNotificationById с флагом `before = true` возвращает уведомления,
-     * созданные до указанного, включая его самого, в порядке от новых к старым
-     */
+    @Test
+    void testGetNotificationById_returnsCorrectNotification() {
+        UUID id = sampleNotification.getId();
+        when(notificationRepository.findById(id)).thenReturn(Optional.of(sampleNotification));
+
+        List<Notification> result = notificationService.getNotificationById(id, false);
+
+        assertEquals(1, result.size());
+        assertEquals(id, result.get(0).getId());
+    }
+
     @Test
     void testGetNotificationById_withBeforeFlag() {
-        Notification n1 = Notification.builder().userId("user").message("First").build();
-        Notification n2 = Notification.builder().userId("user").message("Second").build();
-        notificationService.addNotification(n1);
-        try { Thread.sleep(10); } catch (InterruptedException ignored) {} // Обеспечиваем разницу по времени
-        notificationService.addNotification(n2);
+        UUID id = sampleNotification.getId();
 
-        List<Notification> result = notificationService.getNotificationById(n2.getId(), true);
+        Notification olderNotification = Notification.builder()
+                .id(UUID.randomUUID())
+                .userId("user1")
+                .message("Older")
+                .createdAt(sampleNotification.getCreatedAt().minusDays(1))
+                .received(false)
+                .build();
+
+        List<Notification> allUserNotifications = List.of(sampleNotification, olderNotification);
+
+        when(notificationRepository.findById(id)).thenReturn(Optional.of(sampleNotification));
+        when(notificationRepository.findByUserId("user1")).thenReturn(allUserNotifications);
+
+        List<Notification> result = notificationService.getNotificationById(id, true);
 
         assertEquals(2, result.size());
-        assertTrue(result.get(0).getCreatedAt().isAfter(result.get(1).getCreatedAt())); // Проверка сортировки
+        assertTrue(result.get(0).getCreatedAt().isAfter(result.get(1).getCreatedAt()));
     }
 
-    /**
-     * Проверяем, что метод getNotificationById возвращает уведомление по ID корректно
-     */
     @Test
     void testGetNotificationById_throwsIfNotFound() {
         UUID id = UUID.randomUUID();
+        when(notificationRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThrows(NoSuchElementException.class, () ->
-                notificationService.getNotificationById(id, false));
+        assertThrows(NoSuchElementException.class, () -> notificationService.getNotificationById(id, false));
     }
 }

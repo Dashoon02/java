@@ -1,17 +1,19 @@
 package com.example.coursework.service;
 
 import com.example.coursework.model.Task;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.example.coursework.repository.TaskRepository;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
+
 
 @Service
+@RequiredArgsConstructor
 public class TaskService {
 
-    // ключ - ID задачи: значение - сама задача
-    private final Map<UUID, Task> tasks = new HashMap<>();
+    private final TaskRepository taskRepository;
 
     /**
      * метод создаем новую задачу с уникальным ID,
@@ -20,7 +22,6 @@ public class TaskService {
      */
     public Task createTask(String userId, String title, LocalDateTime dueDate) {
         Task task = Task.builder()
-                .id(UUID.randomUUID())
                 .userId(userId)
                 .title(title)
                 .createdAt(LocalDateTime.now())
@@ -28,8 +29,8 @@ public class TaskService {
                 .resolved(false)
                 .deleted(false)
                 .build();
-        tasks.put(task.getId(), task);
-        return task;
+
+        return taskRepository.save(task);
     }
 
     /**
@@ -37,24 +38,19 @@ public class TaskService {
      * создаем поток значений, фильтруем и собираем резульат в список
      */
     public List<Task> getTasks(String userId){
-        return tasks.values().stream()
-                .filter(t-> t.getUserId().equals(userId) && !t.isDeleted())
-                .collect(Collectors.toList());
+        return taskRepository.findByUserIdAndDeletedFalse(userId);
     }
 
     // метод возвращает только нерешенные задачи
     public List<Task> getPendingTasks(String userId){
-        return tasks.values().stream()
-                .filter(t-> t.getUserId().equals(userId) && !t.isResolved() && !t.isDeleted())
-                .collect(Collectors.toList());
+        return taskRepository.findByUserIdAndResolvedFalseAndDeletedFalse(userId);
     }
 
     // метод помечает задачу как удаленную.
     public void markDeleted(UUID id) {
-        Task task = tasks.get(id);
-        if (task == null) {
-            throw new NoSuchElementException("Задача с ID " + id + " не найдена");
-        }
+        Task task = taskRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Задача с ID " + id + " не найдена"));
+
         task.setDeleted(true);
+        taskRepository.save(task);
     }
 }

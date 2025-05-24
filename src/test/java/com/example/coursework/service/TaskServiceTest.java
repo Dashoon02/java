@@ -1,99 +1,92 @@
 package com.example.coursework.service;
 
 import com.example.coursework.model.Task;
+import com.example.coursework.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.UUID;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class TaskServiceTest {
 
+    @Mock
+    private TaskRepository taskRepository;
+
+    @InjectMocks
     private TaskService taskService;
 
-    @BeforeEach
-    void setUp() {
-        taskService = new TaskService();
-    }
+    private final String userId = "user1";
+    private final LocalDateTime dueDate = LocalDateTime.now().plusDays(1);
 
-    /**
-     * Проверяем, что создаётся задача с правильными значениями
-     */
     @Test
     void testCreateTask_createsValidTask() {
-        String userId = "user1";
-        String title = "Test Task";
-        LocalDateTime dueDate = LocalDateTime.now().plusDays(1);
+        ArgumentCaptor<Task> taskCaptor = ArgumentCaptor.forClass(Task.class);
 
-        Task task = taskService.createTask(userId, title, dueDate);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertNotNull(task); // Проверяем, что задача не null
-        assertEquals(userId, task.getUserId()); // Проверяем userId
-        assertEquals(title, task.getTitle()); // Проверяем заголовок
-        assertFalse(task.isDeleted()); // Новая задача не должна быть удалённой
-        assertFalse(task.isResolved()); // И не должна быть выполненной
+        Task task = taskService.createTask(userId, "Test Task", dueDate);
+
+        assertNotNull(task);
+        assertEquals(userId, task.getUserId());
+        assertEquals("Test Task", task.getTitle());
+        assertFalse(task.isDeleted());
+        assertFalse(task.isResolved());
     }
 
-    /**
-     * Проверяем, что метод getTasks возвращает только не удалённые задачи
-     */
     @Test
     void testGetTasks_returnsOnlyNonDeleted() {
-        String userId = "user1";
-        Task t1 = taskService.createTask(userId, "Task 1", LocalDateTime.now().plusDays(1));
-        Task t2 = taskService.createTask(userId, "Task 2", LocalDateTime.now().plusDays(2));
-        taskService.markDeleted(t1.getId()); // Помечаем первую задачу как удалённую
+        Task t1 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 1").deleted(false).build();
+        Task t2 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 2").deleted(false).build();
+
+        when(taskRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(List.of(t1, t2));
 
         List<Task> tasks = taskService.getTasks(userId);
 
-        assertEquals(1, tasks.size()); // Ожидаем только одну задачу
-        assertEquals(t2.getId(), tasks.get(0).getId()); // Это должна быть вторая задача
+        assertEquals(2, tasks.size());
+        assertTrue(tasks.contains(t1));
+        assertTrue(tasks.contains(t2));
     }
 
-    /**
-     * Проверяем, что метод getPendingTasks возвращает только нерешённые и не удалённые задачи
-     */
     @Test
     void testGetPendingTasks_returnsOnlyPendingAndNotDeleted() {
-        String userId = "user1";
-        Task t1 = taskService.createTask(userId, "Task 1", LocalDateTime.now().plusDays(1));
-        Task t2 = taskService.createTask(userId, "Task 2", LocalDateTime.now().plusDays(1));
-        t2.setResolved(true); // Помечаем вторую задачу как решённую
+        Task t1 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 1").resolved(false).deleted(false).build();
+        Task t2 = Task.builder().id(UUID.randomUUID()).userId(userId).title("Task 2").resolved(true).deleted(false).build();
+
+        when(taskRepository.findByUserIdAndResolvedFalseAndDeletedFalse(userId)).thenReturn(List.of(t1));
 
         List<Task> pending = taskService.getPendingTasks(userId);
 
-        assertEquals(1, pending.size()); // Должна остаться одна задача
-        assertEquals(t1.getId(), pending.get(0).getId()); // Это должна быть нерешённая первая задача
+        assertEquals(1, pending.size());
+        assertEquals(t1.getId(), pending.get(0).getId());
     }
 
-    /**
-     * Проверяем, что задача корректно помечается как удалённая
-     */
     @Test
     void testMarkDeleted_marksTaskAsDeleted() {
-        Task task = taskService.createTask("user", "Title", LocalDateTime.now().plusDays(1));
+        UUID id = UUID.randomUUID();
+        Task task = Task.builder().id(id).userId(userId).deleted(false).build();
 
-        taskService.markDeleted(task.getId());
+        when(taskRepository.findById(id)).thenReturn(Optional.of(task));
+        when(taskRepository.save(task)).thenReturn(task);
 
-        assertTrue(task.isDeleted()); // Задача должна быть удалена
+        taskService.markDeleted(id);
+
+        assertTrue(task.isDeleted());
+        verify(taskRepository).save(task);
     }
 
-    /**
-     * Проверяем, что при попытке удалить несуществующую задачу выбрасывается исключение
-     */
     @Test
     void testMarkDeleted_throwsIfNotFound() {
         UUID invalidId = UUID.randomUUID();
+        when(taskRepository.findById(invalidId)).thenReturn(Optional.empty());
 
-        assertThrows(NoSuchElementException.class, () -> {
-            taskService.markDeleted(invalidId);
-        });
+        assertThrows(NoSuchElementException.class, () -> taskService.markDeleted(invalidId));
     }
 }

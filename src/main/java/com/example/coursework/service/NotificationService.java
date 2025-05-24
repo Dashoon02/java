@@ -2,27 +2,27 @@ package com.example.coursework.service;
 
 import com.example.coursework.model.Notification;
 import org.springframework.stereotype.Service;
+import com.example.coursework.repository.NotificationRepository;
+import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class NotificationService {
-    private final List<Notification> notifications = new ArrayList<>();
+    private final NotificationRepository notificationRepository;
 
     // возвращает все уведомления для пользователя
     public List<Notification> getAll(String userId) {
-        return notifications.stream()
-                .filter(n -> n.getUserId().equals(userId))
-                .collect(Collectors.toList());
+        return notificationRepository.findByUserId(userId);
     }
 
     // добавляет новое уведомление в список
-    public void addNotification(Notification notification) {
-        notification.setId(UUID.randomUUID());
+    public Notification addNotification(Notification notification) {
+        notification.setId(null); // чтобы гарантировать, что id будет сгенерирован
         notification.setCreatedAt(LocalDateTime.now());
-        notifications.add(notification);
+        return notificationRepository.save(notification);
     }
 
     /**
@@ -30,11 +30,7 @@ public class NotificationService {
      * notificationsBefore = true: возвращает все уведомления, которые были до указанного (включительно)
      */
     public List<Notification> getNotificationById(UUID id, boolean notificationsBefore) {
-        Objects.requireNonNull(notifications, "Список уведомлений не может быть null");
-
-        Notification target = notifications.stream()
-                .filter(n -> id.equals(n.getId()))  // поменяли местами для null-safety
-                .findFirst()
+        Notification target = notificationRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Уведомление с ID " + id + " не найдено"));
 
         if (!notificationsBefore) {
@@ -42,10 +38,11 @@ public class NotificationService {
         }
 
         LocalDateTime targetDate = target.getCreatedAt();
-        return notifications.stream()
+        // Берём все уведомления пользователя до targetDate включительно
+        return notificationRepository.findByUserId(target.getUserId()).stream()
                 .filter(n -> !n.getCreatedAt().isAfter(targetDate))
-                .sorted(Comparator.comparing(Notification::getCreatedAt).reversed())
-                .toList(); // Java 16+ вместо collect(Collectors.toList())
+                .sorted((n1, n2) -> n2.getCreatedAt().compareTo(n1.getCreatedAt()))
+                .toList();
     }
 
 }

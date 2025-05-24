@@ -1,28 +1,26 @@
 package com.example.coursework.service;
 
 import com.example.coursework.model.User;
+import com.example.coursework.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
-    /**
-     * используем как временную базу данных для хранения зарегестрированных пользователей
-     */
 
-    // ключ - имя пользователя, значение - объект класса User
-    private final Map<String, User> users = new HashMap<>();
+    private final UserRepository userRepository;
 
     public User getOrCreateUser(String username) {
-        return users.computeIfAbsent(username, name ->
-                User.builder()
-                        .id(UUID.randomUUID().toString())
-                        .username(name)
-                        .build()
-        );
+        return userRepository.findByUsername(username)
+                .orElseGet(() -> {
+                    User newUser = User.builder()
+                            .id(UUID.randomUUID().toString())
+                            .username(username)
+                            .build();
+                    return userRepository.save(newUser);
+                });
     }
-
 }

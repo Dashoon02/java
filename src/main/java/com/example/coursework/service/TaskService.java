@@ -1,5 +1,6 @@
 package com.example.coursework.service;
 
+import com.example.coursework.model.Notification;
 import com.example.coursework.model.Task;
 import com.example.coursework.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import com.example.coursework.config.RabbitMQConfig;
+
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.Async;
 
 
 import java.time.LocalDateTime;
@@ -20,6 +24,7 @@ import java.util.UUID;
 public class TaskService {
 
     private final TaskRepository taskRepository;
+    private final NotificationService notificationService;
     private final RabbitTemplate rabbitTemplate;
 
     public Task createTask(String userId, String title, LocalDateTime dueDate) {
@@ -71,5 +76,31 @@ public class TaskService {
     @CacheEvict(value = {"tasksByUser", "pendingTasksByUser"}, key = "#userId")
     public void evictCachesByUserId(String userId) {
         // Метод пустой — он только для вызова @CacheEvict
+    }
+
+    /**
+     * Метод, который каждые 60 секунд проверяет просроченные задачи
+     */
+    @Scheduled(fixedRate = 60000)
+    public void checkOverdueTasks() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Task> overdueTasks = taskRepository.findByResolvedFalseAndDeletedFalseAndDueDateBefore(now);
+
+        for (Task task : overdueTasks) {
+            sendOverdueNotificationAsync(task);
+        }
+    }
+
+    @Async
+    public void sendOverdueNotificationAsync(Task task) {
+        String message = "Задача просрочена: " + task.getTitle();
+
+        Notification notification = Notification.builder()
+                .userId(task.getUserId())
+                .message(message)
+                .received(false)
+                .build();
+
+        notificationService.addNotification(notification);
     }
 }

@@ -21,13 +21,16 @@ public class TaskServiceTest {
     private TaskRepository taskRepository;
 
     @Mock
+    private NotificationService notificationService; // <-- добавлено
+
+    @Mock
     private RabbitTemplate rabbitTemplate;
 
     private TaskService taskService;
 
     @BeforeEach
     void setUp() {
-        taskService = new TaskService(taskRepository, rabbitTemplate);
+        taskService = new TaskService(taskRepository, notificationService, rabbitTemplate); // <-- добавлен notificationService
     }
 
     @Test

@@ -1,0 +1,19 @@
+package com.example.coursework.model;
+
+
+import lombok.*;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Notification {
+    private UUID id;
+    private String userId;
+    private String message;
+    private LocalDateTime createdAt;
+    private boolean received;
+}

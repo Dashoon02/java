@@ -1,0 +1,9 @@
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    # Для H2 базы дополнительных сервисов не нужно
+    environment:
+      SPRING_PROFILES_ACTIVE: default
